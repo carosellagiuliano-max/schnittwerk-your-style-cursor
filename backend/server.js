@@ -129,8 +129,8 @@ function insertDefaultData() {
       console.log('Erstelle Standard-Salon...');
       db.run(`INSERT INTO salons (id, name, address, phone, email, opening_hours) 
                VALUES (?, ?, ?, ?, ?, ?)`,
-        ['default-salon', 'Schnittwerk Your Style', 'Musterstraße 123, 12345 Musterstadt', 
-         '+49 123 456789', 'info@schnittwerk-your-style.de', '{"monday": {"open": "09:00", "close": "18:00"}, "tuesday": {"open": "09:00", "close": "18:00"}, "wednesday": {"open": "09:00", "close": "18:00"}, "thursday": {"open": "09:00", "close": "18:00"}, "friday": {"open": "09:00", "close": "18:00"}, "saturday": {"open": "09:00", "close": "16:00"}}'], 
+        ['default-salon', 'Schnittwerk Your Style', 'Rorschacherstrasse 152, 9000 St. Gallen, Schweiz', 
+         '+41 78 850 85 95', 'info@schnittwerk-your-style.ch', '{"monday": {"open": "09:00", "close": "18:30"}, "tuesday": {"open": "09:00", "close": "18:30"}, "wednesday": {"open": "09:00", "close": "18:30"}, "thursday": {"open": "09:00", "close": "18:30"}, "friday": {"open": "09:00", "close": "18:30"}, "saturday": {"open": "09:00", "close": "15:00"}}'], 
         function(err) {
           if (err) {
             console.error('Fehler beim Erstellen des Standard-Salons:', err);
@@ -150,12 +150,12 @@ function insertDefaultData() {
 // Standard-Öffnungszeiten einfügen
 function insertDefaultWorkingHours() {
   const defaultHours = [
-    [1, '09:00', '18:00'], // Montag
-    [2, '09:00', '18:00'], // Dienstag
-    [3, '09:00', '18:00'], // Mittwoch
-    [4, '09:00', '18:00'], // Donnerstag
-    [5, '09:00', '18:00'], // Freitag
-    [6, '09:00', '16:00'], // Samstag
+    [1, '09:00', '18:30'], // Montag
+    [2, '09:00', '18:30'], // Dienstag
+    [3, '09:00', '18:30'], // Mittwoch
+    [4, '09:00', '18:30'], // Donnerstag
+    [5, '09:00', '18:30'], // Freitag
+    [6, '09:00', '15:00'], // Samstag
   ];
   
   let hoursInserted = 0;
@@ -182,18 +182,18 @@ function insertDefaultWorkingHours() {
 function insertDefaultStylists() {
   const defaultStylists = [
     {
-      name: 'Vanessa Müller',
-      email: 'vanessa@schnittwerk-your-style.de',
-      phone: '+49 123 456789',
-      specialties: 'Haarschnitte, Färben, Styling',
-      workingHours: '{"monday": {"start": "09:00", "end": "18:00"}, "tuesday": {"start": "09:00", "end": "18:00"}, "wednesday": {"start": "09:00", "end": "18:00"}, "thursday": {"start": "09:00", "end": "18:00"}, "friday": {"start": "09:00", "end": "18:00"}, "saturday": {"start": "09:00", "end": "16:00"}}'
+      name: 'Vanessa Carosella',
+      email: 'vanessa@schnittwerk-your-style.ch',
+      phone: '+41 78 850 85 95',
+      specialties: 'Haarschnitte, Colorationen, Balayage, Trend-Cuts',
+      workingHours: '{"monday": {"start": "09:00", "end": "18:30"}, "tuesday": {"start": "09:00", "end": "18:30"}, "wednesday": {"start": "09:00", "end": "18:30"}, "thursday": {"start": "09:00", "end": "18:30"}, "friday": {"start": "09:00", "end": "18:30"}, "saturday": {"start": "09:00", "end": "15:00"}}'
     },
     {
       name: 'Sarah Schmidt',
-      email: 'sarah@schnittwerk-your-style.de',
-      phone: '+49 123 456790',
-      specialties: 'Haarschnitte, Extensions, Hochsteckfrisuren',
-      workingHours: '{"monday": {"start": "10:00", "end": "19:00"}, "tuesday": {"start": "10:00", "end": "19:00"}, "wednesday": {"start": "10:00", "end": "19:00"}, "thursday": {"start": "10:00", "end": "19:00"}, "friday": {"start": "10:00", "end": "19:00"}, "saturday": {"start": "09:00", "end": "16:00"}}'
+      email: 'sarah@schnittwerk-your-style.ch',
+      phone: '+41 78 850 85 96',
+      specialties: 'Haarschnitte, Extensions, Hochsteckfrisuren, Wimpern & Brauen',
+      workingHours: '{"monday": {"start": "10:00", "end": "19:00"}, "tuesday": {"start": "10:00", "end": "19:00"}, "wednesday": {"start": "10:00", "end": "19:00"}, "thursday": {"start": "10:00", "end": "19:00"}, "friday": {"start": "10:00", "end": "19:00"}, "saturday": {"start": "09:00", "end": "15:00"}}'
     }
   ];
   
@@ -223,38 +223,59 @@ function insertDefaultServices() {
   const defaultServices = [
     {
       name: 'Haarschnitt Damen',
-      description: 'Professioneller Haarschnitt für Damen inkl. Waschen und Föhnen',
+      description: 'Professioneller Haarschnitt für Damen inkl. Waschen, Schneiden und Föhnen',
       duration: 60,
-      price: 45.00,
+      price: 65.00,
       category: 'Haarschnitt'
     },
     {
       name: 'Haarschnitt Herren',
-      description: 'Professioneller Haarschnitt für Herren inkl. Waschen und Styling',
+      description: 'Professioneller Haarschnitt für Herren inkl. Waschen, Schneiden und Styling',
       duration: 45,
-      price: 35.00,
+      price: 45.00,
       category: 'Haarschnitt'
     },
     {
-      name: 'Haarfärben',
-      description: 'Professionelle Haarfarbe inkl. Waschen und Föhnen',
+      name: 'Coloration Vollfarbe',
+      description: 'Professionelle Vollcoloration mit hochwertigen Trinity Haircare Produkten',
       duration: 120,
       price: 85.00,
-      category: 'Färben'
+      category: 'Coloration'
     },
     {
-      name: 'Strähnen',
-      description: 'Professionelle Strähnen inkl. Waschen und Föhnen',
+      name: 'Balayage',
+      description: 'Natürliche Highlights mit freihändiger Technik für einen sun-kissed Look',
       duration: 150,
-      price: 95.00,
-      category: 'Färben'
+      price: 120.00,
+      category: 'Coloration'
+    },
+    {
+      name: 'Ansatzbehandlung',
+      description: 'Professionelle Ansatzbehandlung für gleichmäßige Farbergebnisse',
+      duration: 90,
+      price: 65.00,
+      category: 'Coloration'
     },
     {
       name: 'Hochsteckfrisur',
-      description: 'Elegante Hochsteckfrisur für besondere Anlässe',
+      description: 'Elegante Hochsteckfrisur für besondere Anlässe und Events',
       duration: 90,
       price: 75.00,
       category: 'Styling'
+    },
+    {
+      name: 'Wimpern färben',
+      description: 'Professionelle Wimpernfärbung für ausdrucksstarke Augen',
+      duration: 30,
+      price: 25.00,
+      category: 'Beauty'
+    },
+    {
+      name: 'Brauen zupfen & färben',
+      description: 'Professionelle Augenbrauenbehandlung für perfekte Form',
+      duration: 45,
+      price: 35.00,
+      category: 'Beauty'
     }
   ];
   
