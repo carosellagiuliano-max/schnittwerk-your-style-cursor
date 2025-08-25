@@ -561,24 +561,105 @@ app.post('/api/salon/:salonId/stylists', (req, res) => {
 });
 
 // Admin: Service hinzufügen
-app.post('/api/salon/:salonId/services', (req, res) => {
-  const { salonId } = req.params;
-  const { name, description, duration, price, category } = req.body;
-  
-  const serviceId = uuidv4();
-  db.run(`INSERT INTO services (id, salon_id, name, description, duration, price, category) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [serviceId, salonId, name, description, duration, price, category], function(err) {
-    if (err) {
-      res.status(500).json({ error: 'Fehler beim Erstellen des Services' });
-      return;
+app.post('/api/salon/:salonId/services', async (req, res) => {
+  try {
+    const { salonId } = req.params;
+    const { name, description, duration, price, category } = req.body;
+    
+    if (!name || !duration || !price || !category) {
+      return res.status(400).json({ error: 'Alle Pflichtfelder müssen ausgefüllt werden' });
     }
+    
+    const stmt = db.prepare(`
+      INSERT INTO services (id, salon_id, name, description, duration, price, category, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    const serviceId = uuidv4();
+    const now = new Date().toISOString();
+    
+    stmt.run(serviceId, salonId, name, description, duration, price, category, true, now);
     
     res.status(201).json({
       id: serviceId,
-      message: 'Service erfolgreich hinzugefügt'
+      salon_id: salonId,
+      name,
+      description,
+      duration,
+      price,
+      category,
+      is_active: true,
+      created_at: now
     });
-  });
+  } catch (error) {
+    console.error('Fehler beim Erstellen des Services:', error);
+    res.status(500).json({ error: 'Interner Server-Fehler' });
+  }
+});
+
+// Admin: Service bearbeiten
+app.put('/api/salon/:salonId/services/:serviceId', async (req, res) => {
+  try {
+    const { salonId, serviceId } = req.params;
+    const { name, description, duration, price, category, is_active } = req.body;
+    
+    if (!name || !duration || !price || !category) {
+      return res.status(400).json({ error: 'Alle Pflichtfelder müssen ausgefüllt werden' });
+    }
+    
+    const stmt = db.prepare(`
+      UPDATE services 
+      SET name = ?, description = ?, duration = ?, price = ?, category = ?, is_active = ?, updated_at = ?
+      WHERE id = ? AND salon_id = ?
+    `);
+    
+    const now = new Date().toISOString();
+    const result = stmt.run(name, description, duration, price, category, is_active, now, serviceId, salonId);
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Service nicht gefunden' });
+    }
+    
+    res.json({
+      id: serviceId,
+      salon_id: salonId,
+      name,
+      description,
+      duration,
+      price,
+      category,
+      is_active,
+      updated_at: now
+    });
+  } catch (error) {
+    console.error('Fehler beim Bearbeiten des Services:', error);
+    res.status(500).json({ error: 'Interner Server-Fehler' });
+  }
+});
+
+// Admin: Service löschen (Soft Delete)
+app.delete('/api/salon/:salonId/services/:serviceId', async (req, res) => {
+  try {
+    const { salonId, serviceId } = req.params;
+    
+    const stmt = db.prepare(`
+      UPDATE services 
+      SET is_active = false, deleted_at = ?
+      WHERE id = ? AND salon_id = ?
+    `);
+    
+    const now = new Date().toISOString();
+    const result = stmt.run(false, now, serviceId, salonId);
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Service nicht gefunden' });
+    }
+    
+    res.json({ message: 'Service erfolgreich gelöscht' });
+  } catch (error) {
+    console.error('Fehler beim Löschen des Services:', error);
+    res.status(500).json({ error: 'Interner Server-Fehler' });
+  }
 });
 
 // Hilfsfunktionen
