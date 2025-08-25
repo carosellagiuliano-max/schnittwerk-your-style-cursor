@@ -17,7 +17,6 @@ const Navigation = () => {
     { href: '/leistungen', label: 'Leistungen & Preise' },
     { href: '/galerie', label: 'Galerie' },
     { href: '/ueber-uns', label: 'Über uns & Kontakt' },
-    { href: '/buchen', label: 'Termin buchen' },
   ];
 
   return (

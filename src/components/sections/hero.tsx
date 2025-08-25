@@ -76,14 +76,6 @@ const Hero = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12">
-            <AppointmentBookingDialog>
-              <Button 
-                size="lg"
-                className="bg-white text-black hover:bg-white/90 font-medium px-8 py-4 text-lg"
-              >
-                Termin buchen
-              </Button>
-            </AppointmentBookingDialog>
             <ProductsDialog>
               <Button 
                 variant="outline" 

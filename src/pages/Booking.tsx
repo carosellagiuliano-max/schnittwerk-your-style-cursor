@@ -64,12 +64,50 @@ const Booking = () => {
     loadServices();
   }, []);
 
+  // Setze Standardwerte nach dem Laden der Daten
+  useEffect(() => {
+    if (stylists.length > 0 && services.length > 0) {
+      // Setze Vanessa Carosella als Standard-Friseurin
+      const vanessa = stylists.find(s => s.name.includes('Vanessa') || s.name.includes('Carosella'));
+      if (vanessa) {
+        setSelectedStylist(vanessa.id);
+      }
+      
+      // Setze "Haare färben" als Standard-Service
+      const haareFaerben = services.find(s => 
+        s.name.toLowerCase().includes('färben') || 
+        s.name.toLowerCase().includes('coloration') ||
+        s.name.toLowerCase().includes('farbe')
+      );
+      if (haareFaerben) {
+        setSelectedService(haareFaerben.id);
+      }
+    }
+  }, [stylists, services]);
+
   // Lade Verfügbarkeit wenn sich das Datum ändert
   useEffect(() => {
     if (selectedDate) {
       loadAvailability();
     }
   }, [selectedDate]);
+
+  // Auto-Close nach Datum-Auswahl
+  useEffect(() => {
+    if (selectedDate && selectedStylist && selectedService) {
+      // Kurze Verzögerung für bessere UX
+      const timer = setTimeout(() => {
+        // Hier könnte der Dialog geschlossen werden, falls er in einem Dialog ist
+        // Für jetzt zeigen wir nur eine Bestätigung
+        toast({
+          title: "Datum ausgewählt",
+          description: `Termin für ${format(selectedDate, "PPP", { locale: de })} ausgewählt.`,
+        });
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [selectedDate, selectedStylist, selectedService]);
 
   const loadStylists = async () => {
     try {
@@ -224,24 +262,24 @@ const Booking = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Termin buchen</h1>
-          <p className="text-lg text-gray-600">
-            Buche deinen Wunschtermin bei unseren erfahrenen Friseuren
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 py-12 px-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold text-gray-900 mb-6 font-heading">Termin buchen</h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Buche deinen Wunschtermin bei unseren erfahrenen Friseuren im Schnittwerk
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           {/* Buchungsformular */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="w-5 h-5" />
+          <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5 border-b">
+              <CardTitle className="flex items-center gap-3 text-2xl">
+                <CalendarIcon className="w-6 h-6 text-primary" />
                 Termin auswählen
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-base">
                 Wähle deinen Wunschtermin und Service aus
               </CardDescription>
             </CardHeader>
@@ -390,7 +428,7 @@ const Booking = () => {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 text-lg shadow-lg hover:shadow-xl transition-all duration-300" disabled={isLoading}>
                   {isLoading ? "Buche Termin..." : "Termin buchen"}
                 </Button>
               </form>
@@ -398,32 +436,32 @@ const Booking = () => {
           </Card>
 
           {/* Zusammenfassung */}
-          <div className="space-y-6">
+          <div className="space-y-8">
             {/* Verfügbarkeit */}
             {selectedDate && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="w-5 h-5" />
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+                  <CardTitle className="flex items-center gap-3 text-xl">
+                    <Clock className="w-6 h-6 text-blue-600" />
                     Verfügbarkeit
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {availability?.available ? (
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
                         <span className="text-sm text-muted-foreground">Öffnungszeiten:</span>
-                        <span className="font-medium">
+                        <span className="font-semibold text-gray-900">
                           {availability.workingHours.open} - {availability.workingHours.close}
                         </span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center py-2">
                         <span className="text-sm text-muted-foreground">Verfügbare Zeiten:</span>
-                        <span className="font-medium">{availableSlots.length}</span>
+                        <span className="font-semibold text-gray-900">{availableSlots.length}</span>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-muted-foreground">An diesem Tag geschlossen</p>
+                    <p className="text-muted-foreground text-center py-4">An diesem Tag geschlossen</p>
                   )}
                 </CardContent>
               </Card>
@@ -431,28 +469,28 @@ const Booking = () => {
 
             {/* Service-Details */}
             {selectedService && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Scissors className="w-5 h-5" />
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
+                  <CardTitle className="flex items-center gap-3 text-xl">
+                    <Scissors className="w-6 h-6 text-green-600" />
                     Service-Details
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
                       <span className="text-sm text-muted-foreground">Service:</span>
-                      <span className="font-medium">
+                      <span className="font-semibold text-gray-900">
                         {services.find(s => s.id === selectedService)?.name}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
                       <span className="text-sm text-muted-foreground">Dauer:</span>
-                      <span className="font-medium">{getSelectedServiceDuration()} Min.</span>
+                      <span className="font-semibold text-gray-900">{getSelectedServiceDuration()} Min.</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center py-2">
                       <span className="text-sm text-muted-foreground">Preis:</span>
-                      <span className="font-medium text-lg text-primary">
+                      <span className="text-2xl font-bold text-primary">
                         {getSelectedServicePrice().toFixed(2)} €
                       </span>
                     </div>
@@ -462,15 +500,27 @@ const Booking = () => {
             )}
 
             {/* Informationen */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Wichtige Informationen</CardTitle>
+            <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b">
+                <CardTitle className="text-xl">Wichtige Informationen</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm text-muted-foreground">
-                <p>• Bitte sei 10 Minuten vor deinem Termin da</p>
-                <p>• Bei Verspätung kann der Termin nicht garantiert werden</p>
-                <p>• Stornierungen bitte spätestens 24h vorher</p>
-                <p>• Bei Fragen: +49 123 456789</p>
+              <CardContent className="space-y-4 text-sm text-muted-foreground">
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Bitte sei 10 Minuten vor deinem Termin da</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Bei Verspätung kann der Termin nicht garantiert werden</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Stornierungen bitte spätestens 24h vorher</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-amber-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Bei Fragen: +41 78 850 85 95</p>
+                </div>
               </CardContent>
             </Card>
           </div>

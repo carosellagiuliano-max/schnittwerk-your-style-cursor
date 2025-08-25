@@ -218,12 +218,7 @@ const AboutContact = () => {
                 <p className="text-sm text-muted-foreground mb-3">
                   Termine sind auch außerhalb der Öffnungszeiten nach Vereinbarung möglich.
                 </p>
-                <AppointmentBookingDialog>
-                  <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Jetzt Termin buchen
-                  </Button>
-                </AppointmentBookingDialog>
+
               </div>
             </CardContent>
           </Card>
