@@ -5,17 +5,37 @@ import { DateTime } from 'luxon';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'schnittwerk-admin-secret-key-2024';
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Admin-Authentifizierung Middleware
+const authenticateAdmin = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Kein Token bereitgestellt' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.admin = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Ungültiger Token' });
+  }
+};
 
 // Datenbank initialisieren
 const db = new sqlite3.Database('./salon.db', (err) => {
@@ -94,6 +114,16 @@ function initializeDatabase() {
       is_working_day BOOLEAN DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (salon_id) REFERENCES salons (id)
+    )`,
+    
+    `CREATE TABLE IF NOT EXISTS admins (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      email TEXT,
+      role TEXT DEFAULT 'admin',
+      is_active BOOLEAN DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`
   ];
 
@@ -111,6 +141,7 @@ function initializeDatabase() {
       // Wenn alle Tabellen erstellt wurden, Standard-Daten einfügen
       if (tablesCreated === totalTables) {
         insertDefaultData();
+        insertDefaultAdmin();
       }
     });
   });
@@ -143,6 +174,37 @@ function insertDefaultData() {
         });
     } else {
       console.log('Standard-Salon bereits vorhanden');
+      insertDefaultWorkingHours();
+    }
+  });
+}
+
+// Standard-Admin-Account erstellen
+function insertDefaultAdmin() {
+  db.get("SELECT id FROM admins WHERE username = 'admin'", (err, row) => {
+    if (err) {
+      console.error('Fehler beim Prüfen des Standard-Admins:', err);
+      return;
+    }
+    
+    if (!row) {
+      console.log('Erstelle Standard-Admin...');
+      const adminId = uuidv4();
+      const passwordHash = bcrypt.hashSync('admin123', 10);
+      
+      db.run(`INSERT INTO admins (id, username, password_hash, email, role) 
+               VALUES (?, ?, ?, ?, ?)`,
+        [adminId, 'admin', passwordHash, 'admin@schnittwerk-your-style.ch', 'admin'], 
+        function(err) {
+          if (err) {
+            console.error('Fehler beim Erstellen des Standard-Admins:', err);
+            return;
+          }
+          console.log('Standard-Admin erfolgreich erstellt');
+          console.log('Username: admin, Passwort: admin123');
+        });
+    } else {
+      console.log('Standard-Admin bereits vorhanden');
     }
   });
 }
@@ -301,6 +363,68 @@ function insertDefaultServices() {
 }
 
 // API-Routen
+
+// Admin-Login
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Benutzername und Passwort sind erforderlich' });
+    }
+    
+    // Admin in der Datenbank suchen
+    db.get('SELECT * FROM admins WHERE username = ? AND is_active = 1', [username], async (err, admin) => {
+      if (err) {
+        return res.status(500).json({ error: 'Datenbankfehler' });
+      }
+      
+      if (!admin) {
+        return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+      }
+      
+      // Passwort überprüfen
+      const isValidPassword = await bcrypt.compare(password, admin.password_hash);
+      
+      if (!isValidPassword) {
+        return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
+      }
+      
+      // JWT-Token erstellen
+      const token = jwt.sign(
+        { 
+          id: admin.id, 
+          username: admin.username, 
+          role: admin.role 
+        },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      
+      res.json({
+        message: 'Login erfolgreich',
+        token,
+        admin: {
+          id: admin.id,
+          username: admin.username,
+          email: admin.email,
+          role: admin.role
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Fehler beim Admin-Login:', error);
+    res.status(500).json({ error: 'Interner Server-Fehler' });
+  }
+});
+
+// Admin-Verifizierung
+app.get('/api/admin/verify', authenticateAdmin, (req, res) => {
+  res.json({
+    message: 'Token gültig',
+    admin: req.admin
+  });
+});
 
 // Salon-Informationen abrufen
 app.get('/api/salon/:id', (req, res) => {
@@ -561,7 +685,7 @@ app.post('/api/salon/:salonId/stylists', (req, res) => {
 });
 
 // Admin: Service hinzufügen
-app.post('/api/salon/:salonId/services', async (req, res) => {
+app.post('/api/salon/:salonId/services', authenticateAdmin, async (req, res) => {
   try {
     const { salonId } = req.params;
     const { name, description, duration, price, category } = req.body;
@@ -598,7 +722,7 @@ app.post('/api/salon/:salonId/services', async (req, res) => {
 });
 
 // Admin: Service bearbeiten
-app.put('/api/salon/:salonId/services/:serviceId', async (req, res) => {
+app.put('/api/salon/:salonId/services/:serviceId', authenticateAdmin, async (req, res) => {
   try {
     const { salonId, serviceId } = req.params;
     const { name, description, duration, price, category, is_active } = req.body;
@@ -638,7 +762,7 @@ app.put('/api/salon/:salonId/services/:serviceId', async (req, res) => {
 });
 
 // Admin: Service löschen (Soft Delete)
-app.delete('/api/salon/:salonId/services/:serviceId', async (req, res) => {
+app.delete('/api/salon/:salonId/services/:serviceId', authenticateAdmin, async (req, res) => {
   try {
     const { salonId, serviceId } = req.params;
     

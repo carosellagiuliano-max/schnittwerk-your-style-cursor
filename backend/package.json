@@ -9,14 +9,21 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["salon", "booking", "appointments", "api"],
+  "keywords": [
+    "salon",
+    "booking",
+    "appointments",
+    "api"
+  ],
   "author": "Schnittwerk Your Style",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2",
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
-    "sqlite3": "^5.1.6",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
     "luxon": "^3.4.4",
+    "sqlite3": "^5.1.6",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

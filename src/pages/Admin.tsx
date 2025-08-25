@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Clock, User, Scissors, Plus, Edit, Trash2, Eye, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, Clock, User, Scissors, Plus, Edit, Trash2, Eye, CheckCircle, XCircle, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -68,16 +68,125 @@ const Admin = () => {
     is_active: true
   });
 
+  // Neue States für Admin-Login
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [adminInfo, setAdminInfo] = useState<any>(null);
+  const [loginForm, setLoginForm] = useState({
+    username: '',
+    password: ''
+  });
+  const [loginError, setLoginError] = useState('');
+
   const { toast } = useToast();
   const salonId = 'default-salon';
 
+  // Beim Start prüfen, ob bereits eingeloggt
   useEffect(() => {
-    loadAppointments();
-    loadStylists();
-    loadServices();
-  }, [selectedDate, selectedStatus]);
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      verifyToken(token);
+    }
+  }, []);
 
+  // Daten laden (nur wenn eingeloggt)
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadData();
+    }
+  }, [isLoggedIn, selectedDate, selectedStatus]);
+
+  // Token verifizieren
+  const verifyToken = async (token: string) => {
+    try {
+      const response = await fetch('http://localhost:3001/api/admin/verify', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        setAdminToken(token);
+        setIsLoggedIn(true);
+        loadData();
+      } else {
+        localStorage.removeItem('adminToken');
+        setIsLoggedIn(false);
+      }
+    } catch (error) {
+      localStorage.removeItem('adminToken');
+      setIsLoggedIn(false);
+    }
+  };
+
+  // Admin einloggen
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    
+    if (!loginForm.username || !loginForm.password) {
+      setLoginError('Bitte fülle alle Felder aus');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:3001/api/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(loginForm),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('adminToken', data.token);
+        setAdminToken(data.token);
+        setAdminInfo(data.admin);
+        setIsLoggedIn(true);
+        setLoginForm({ username: '', password: '' });
+        toast({
+          title: "Login erfolgreich!",
+          description: `Willkommen zurück, ${data.admin.username}!`,
+        });
+        loadData();
+      } else {
+        const errorData = await response.json();
+        setLoginError(errorData.error || 'Login fehlgeschlagen');
+      }
+    } catch (error) {
+      setLoginError('Verbindungsfehler - bitte versuche es erneut');
+    }
+  };
+
+  // Admin ausloggen
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    setAdminToken(null);
+    setAdminInfo(null);
+    setIsLoggedIn(false);
+    setAppointments([]);
+    setStylists([]);
+    setServices([]);
+    toast({
+      title: "Ausgeloggt",
+      description: "Du wurdest erfolgreich ausgeloggt.",
+    });
+  };
+
+  // Daten laden (nur wenn eingeloggt)
+  const loadData = () => {
+    if (isLoggedIn) {
+      loadAppointments();
+      loadStylists();
+      loadServices();
+    }
+  };
+
+  // Alle API-Aufrufe mit Token versehen
   const loadAppointments = async () => {
+    if (!adminToken) return;
+    
     try {
       let url = `http://localhost:3001/api/salon/${salonId}/appointments`;
       const params = new URLSearchParams();
@@ -89,7 +198,11 @@ const Admin = () => {
         url += `?${params.toString()}`;
       }
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setAppointments(data);
@@ -100,8 +213,14 @@ const Admin = () => {
   };
 
   const loadStylists = async () => {
+    if (!adminToken) return;
+    
     try {
-      const response = await fetch(`http://localhost:3001/api/salon/${salonId}/stylists`);
+      const response = await fetch(`http://localhost:3001/api/salon/${salonId}/stylists`, {
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setStylists(data);
@@ -112,8 +231,14 @@ const Admin = () => {
   };
 
   const loadServices = async () => {
+    if (!adminToken) return;
+    
     try {
-      const response = await fetch(`http://localhost:3001/api/salon/${salonId}/services`);
+      const response = await fetch(`http://localhost:3001/api/salon/${salonId}/services`, {
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setServices(data);
@@ -124,11 +249,14 @@ const Admin = () => {
   };
 
   const updateAppointmentStatus = async (appointmentId: string, newStatus: string) => {
+    if (!adminToken) return;
+
     try {
       const response = await fetch(`http://localhost:3001/api/appointments/${appointmentId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
         },
         body: JSON.stringify({
           status: newStatus,
@@ -143,9 +271,10 @@ const Admin = () => {
         });
         loadAppointments();
       } else {
+        const errorData = await response.json();
         toast({
           title: "Fehler",
-          description: "Der Status konnte nicht aktualisiert werden.",
+          description: errorData.error || "Ein unbekannter Fehler ist aufgetreten.",
           variant: "destructive",
         });
       }
@@ -220,6 +349,7 @@ const Admin = () => {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
           },
           body: JSON.stringify(serviceForm),
         });
@@ -229,6 +359,7 @@ const Admin = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
           },
           body: JSON.stringify(serviceForm),
         });
@@ -279,11 +410,15 @@ const Admin = () => {
 
   // Service löschen
   const deleteService = async (serviceId: string) => {
+    if (!adminToken) return;
     if (!confirm('Möchtest du diesen Service wirklich löschen?')) return;
 
     try {
       const response = await fetch(`http://localhost:3001/api/salon/${salonId}/services/${serviceId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
       });
 
       if (response.ok) {
@@ -293,9 +428,10 @@ const Admin = () => {
         });
         loadServices();
       } else {
+        const errorData = await response.json();
         toast({
           title: "Fehler",
-          description: "Der Service konnte nicht gelöscht werden.",
+          description: errorData.error || "Der Service konnte nicht gelöscht werden.",
           variant: "destructive",
         });
       }
@@ -326,417 +462,491 @@ const Admin = () => {
           <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-600 bg-clip-text text-transparent mb-8 font-heading drop-shadow-sm">
             Admin Dashboard
           </h1>
-          <p className="text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed mb-8">
             Verwalte Termine, Friseure und Dienstleistungen im Schnittwerk
           </p>
+          
+          {/* Admin-Info und Logout-Button */}
+          {isLoggedIn && adminInfo && (
+            <div className="flex items-center justify-center gap-6">
+              <div className="bg-white/80 backdrop-blur-xl rounded-lg px-6 py-3 shadow-lg">
+                <p className="text-gray-700">
+                  <span className="font-semibold">Eingeloggt als:</span> {adminInfo.username}
+                </p>
+              </div>
+              <Button 
+                onClick={handleLogout}
+                variant="outline"
+                className="border-red-200 hover:border-red-400 hover:bg-red-50 text-red-700 transition-all duration-200"
+              >
+                <Lock className="w-4 h-4 mr-2" />
+                Ausloggen
+              </Button>
+            </div>
+          )}
         </div>
+
+        {/* Login-Formular */}
+        {!isLoggedIn && (
+          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-xl backdrop-saturate-150 mb-8">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50 p-6">
+              <CardTitle className="text-2xl flex items-center gap-3 text-gray-800">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
+                  <Lock className="w-4 h-4 text-white" />
+                </div>
+                Admin Login
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-3">
+                  <Label htmlFor="adminUsername" className="text-lg font-semibold text-gray-700">Benutzername</Label>
+                  <Input
+                    id="adminUsername"
+                    value={loginForm.username}
+                    onChange={(e) => setLoginForm({...loginForm, username: e.target.value})}
+                    placeholder="Dein Benutzername"
+                    className="h-12 text-lg border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 transition-all duration-200 shadow-lg focus:shadow-xl"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label htmlFor="adminPassword" className="text-lg font-semibold text-gray-700">Passwort</Label>
+                  <Input
+                    id="adminPassword"
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                    placeholder="Dein Passwort"
+                    className="h-12 text-lg border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 transition-all duration-200 shadow-lg focus:shadow-xl"
+                  />
+                </div>
+                {loginError && (
+                  <p className="text-red-500 text-sm">{loginError}</p>
+                )}
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  {isLoading ? "Einloggen..." : "Einloggen"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filter-Sektion mit verbessertem Design */}
-        <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-xl backdrop-saturate-150 mb-8">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50 p-6">
-            <CardTitle className="text-2xl flex items-center gap-3 text-gray-800">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
-                <Eye className="w-4 h-4 text-white" />
-              </div>
-              Filter & Suche
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="date" className="text-lg font-semibold text-gray-700">Datum</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="h-12 text-lg border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 transition-all duration-200 shadow-lg focus:shadow-xl"
-                />
-              </div>
-              <div className="space-y-3">
-                <Label htmlFor="status" className="text-lg font-semibold text-gray-700">Status</Label>
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="h-12 text-lg border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 transition-all duration-200 shadow-lg focus:shadow-xl">
-                    <SelectValue placeholder="Alle Status" />
-                  </SelectTrigger>
-                  <SelectContent className="border-0 shadow-2xl">
-                    <SelectItem value="">Alle Status</SelectItem>
-                    <SelectItem value="confirmed">Bestätigt</SelectItem>
-                    <SelectItem value="pending">Ausstehend</SelectItem>
-                    <SelectItem value="cancelled">Storniert</SelectItem>
-                    <SelectItem value="completed">Abgeschlossen</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end">
-                <Button 
-                  onClick={() => { setSelectedDate(''); setSelectedStatus(''); }}
-                  className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-gray-500 to-slate-600 hover:from-gray-600 hover:to-slate-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                >
-                  🔄 Filter zurücksetzen
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Übersichtskarten */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Heute</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {appointments.filter(a => a.appointment_date === format(new Date(), 'yyyy-MM-dd')).length}
-              </div>
-              <p className="text-xs text-muted-foreground">Termine heute</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Bestätigt</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {appointments.filter(a => a.status === 'confirmed').length}
-              </div>
-              <p className="text-xs text-muted-foreground">Bestätigte Termine</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Friseure</CardTitle>
-              <User className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {stylists.filter(s => s.is_active).length}
-              </div>
-              <p className="text-xs text-muted-foreground">Aktive Friseure</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Services</CardTitle>
-              <Scissors className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {services.filter(s => s.is_active).length}
-              </div>
-              <p className="text-xs text-muted-foreground">Aktive Services</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Hauptinhalt */}
-        <Tabs defaultValue="appointments" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="appointments">Termine</TabsTrigger>
-            <TabsTrigger value="stylists">Friseure</TabsTrigger>
-            <TabsTrigger value="services">Services</TabsTrigger>
-          </TabsList>
-
-          {/* Termine Tab */}
-          <TabsContent value="appointments" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Termine verwalten
-                </CardTitle>
-                <CardDescription>
-                  Alle Termine einsehen und verwalten
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {/* Filter */}
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Datum & Zeit</TableHead>
-                        <TableHead>Kunde</TableHead>
-                        <TableHead>Service</TableHead>
-                        <TableHead>Friseur</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Preis</TableHead>
-                        <TableHead>Aktionen</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {appointments.map((appointment) => (
-                        <TableRow key={appointment.id}>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium">
-                                {format(new Date(appointment.appointment_date), 'dd.MM.yyyy', { locale: de })}
-                              </span>
-                              <span className="text-sm text-muted-foreground">
-                                {appointment.start_time} - {appointment.end_time}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{appointment.customer_name}</span>
-                              <span className="text-sm text-muted-foreground">{appointment.customer_email}</span>
-                              {appointment.customer_phone && (
-                                <span className="text-sm text-muted-foreground">{appointment.customer_phone}</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{appointment.service_name}</span>
-                              {appointment.notes && (
-                                <span className="text-sm text-muted-foreground">{appointment.notes}</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium">{appointment.stylist_name}</span>
-                          </TableCell>
-                          <TableCell>
-                            {getStatusBadge(appointment.status)}
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium">{appointment.price.toFixed(2)} €</span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <Eye className="w-4 h-4" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>Termin Details</DialogTitle>
-                                    <DialogDescription>
-                                      Detaillierte Informationen zum Termin
-                                    </DialogDescription>
-                                  </DialogHeader>
-                                  <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                                        <Label className="text-sm font-medium">Kunde</Label>
-                                        <p>{appointment.customer_name}</p>
-                                        <p className="text-sm text-muted-foreground">{appointment.customer_email}</p>
-                                        {appointment.customer_phone && (
-                                          <p className="text-sm text-muted-foreground">{appointment.customer_phone}</p>
-                                        )}
-                                      </div>
-                                      <div>
-                                        <Label className="text-sm font-medium">Termin</Label>
-                                        <p>{format(new Date(appointment.appointment_date), 'dd.MM.yyyy', { locale: de })}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          {appointment.start_time} - {appointment.end_time}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <Label className="text-sm font-medium">Service</Label>
-                                      <p>{appointment.service_name}</p>
-                                      <p className="text-sm text-muted-foreground">{appointment.price.toFixed(2)} €</p>
-                                    </div>
-                                    <div>
-                                      <Label className="text-sm font-medium">Friseur</Label>
-                                      <p>{appointment.stylist_name}</p>
-                                    </div>
-                                    {appointment.notes && (
-                                      <div>
-                                        <Label className="text-sm font-medium">Anmerkungen</Label>
-                                        <p>{appointment.notes}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-
-                              {appointment.status === 'confirmed' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => updateAppointmentStatus(appointment.id, 'completed')}
-                                    className="text-green-600 hover:text-green-700"
-                                  >
-                                    <CheckCircle className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
-                                    className="text-red-600 hover:text-red-700"
-                                  >
-                                    <XCircle className="w-4 h-4" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+        {isLoggedIn && (
+          <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-xl backdrop-saturate-150 mb-8">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100/50 p-6">
+              <CardTitle className="text-2xl flex items-center gap-3 text-gray-800">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
+                  <Eye className="w-4 h-4 text-white" />
                 </div>
-
-                {appointments.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Keine Termine gefunden
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Friseure Tab */}
-          <TabsContent value="stylists" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5" />
-                  Friseure verwalten
-                </CardTitle>
-                <CardDescription>
-                  Alle Friseure einsehen und verwalten
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {stylists.map((stylist) => (
-                    <Card key={stylist.id}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          {stylist.name}
-                          <Badge variant={stylist.is_active ? "default" : "secondary"}>
-                            {stylist.is_active ? "Aktiv" : "Inaktiv"}
-                          </Badge>
-                        </CardTitle>
-                        <CardDescription>{stylist.specialties}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <div className="text-sm">
-                          <span className="font-medium">E-Mail:</span> {stylist.email}
-                        </div>
-                        <div className="text-sm">
-                          <span className="font-medium">Telefon:</span> {stylist.phone}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                Filter & Suche
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-3">
+                  <Label htmlFor="date" className="text-lg font-semibold text-gray-700">Datum</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="h-12 text-lg border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 transition-all duration-200 shadow-lg focus:shadow-xl"
+                  />
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Services Tab */}
-          <TabsContent value="services" className="space-y-6">
-            <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-xl backdrop-saturate-150">
-              <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100/50 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-2xl flex items-center gap-3 text-gray-800">
-                      <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                        <Scissors className="w-4 h-4 text-white" />
-                      </div>
-                      Services verwalten
-                    </CardTitle>
-                    <CardDescription className="text-lg text-gray-600 mt-2">
-                      Alle Services einsehen, bearbeiten und neue erstellen
-                    </CardDescription>
-                  </div>
+                <div className="space-y-3">
+                  <Label htmlFor="status" className="text-lg font-semibold text-gray-700">Status</Label>
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="h-12 text-lg border-2 border-gray-200 hover:border-blue-300 focus:border-blue-500 transition-all duration-200 shadow-lg focus:shadow-xl">
+                      <SelectValue placeholder="Alle Status" />
+                    </SelectTrigger>
+                    <SelectContent className="border-0 shadow-2xl">
+                      <SelectItem value="">Alle Status</SelectItem>
+                      <SelectItem value="confirmed">Bestätigt</SelectItem>
+                      <SelectItem value="pending">Ausstehend</SelectItem>
+                      <SelectItem value="cancelled">Storniert</SelectItem>
+                      <SelectItem value="completed">Abgeschlossen</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
                   <Button 
-                    onClick={() => setShowServiceForm(true)}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                    onClick={() => { setSelectedDate(''); setSelectedStatus(''); }}
+                    className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-gray-500 to-slate-600 hover:from-gray-600 hover:to-slate-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Neuer Service
+                    🔄 Filter zurücksetzen
                   </Button>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Übersichtskarten */}
+        {isLoggedIn && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Heute</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {services.map((service) => (
-                    <Card key={service.id} className="shadow-lg hover:shadow-xl transition-all duration-200 border-0 bg-white/90">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg font-bold text-gray-800 mb-2">{service.name}</CardTitle>
-                            <CardDescription className="text-gray-600 text-sm leading-relaxed">{service.description}</CardDescription>
-                          </div>
-                          <Badge 
-                            variant={service.is_active ? "default" : "secondary"}
-                            className={cn(
-                              "ml-2",
-                              service.is_active 
-                                ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white" 
-                                : "bg-gray-300 text-gray-700"
-                            )}
-                          >
-                            {service.is_active ? "Aktiv" : "Inaktiv"}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="bg-gray-50 p-2 rounded-lg">
-                            <span className="font-semibold text-gray-700">⏱️ Dauer:</span>
-                            <div className="text-gray-800 font-medium">{service.duration} Min.</div>
-                          </div>
-                          <div className="bg-gray-50 p-2 rounded-lg">
-                            <span className="font-semibold text-gray-700">💰 Preis:</span>
-                            <div className="text-purple-600 font-bold">CHF {service.price.toFixed(0)}</div>
-                          </div>
-                        </div>
-                        <div className="bg-purple-50 p-2 rounded-lg">
-                          <span className="font-semibold text-purple-700 text-sm">🏷️ Kategorie:</span>
-                          <div className="text-purple-800 font-medium">{service.category}</div>
-                        </div>
-                        <div className="flex gap-2 pt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => editService(service)}
-                            className="flex-1 border-purple-200 hover:border-purple-400 hover:bg-purple-50 text-purple-700 transition-all duration-200"
-                          >
-                            <Edit className="w-3 h-3 mr-1" />
-                            Bearbeiten
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteService(service.id)}
-                            className="flex-1 border-red-200 hover:border-red-400 hover:bg-red-50 text-red-700 transition-all duration-200"
-                          >
-                            <Trash2 className="w-3 h-3 mr-1" />
-                            Löschen
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {appointments.filter(a => a.appointment_date === format(new Date(), 'yyyy-MM-dd')).length}
                 </div>
-                
-                {services.length === 0 && (
-                  <div className="text-center py-12 text-gray-500">
-                    <Scissors className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                    <p className="text-lg font-medium">Keine Services gefunden</p>
-                    <p className="text-sm">Erstelle deinen ersten Service!</p>
-                  </div>
-                )}
+                <p className="text-xs text-muted-foreground">Termine heute</p>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Bestätigt</CardTitle>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {appointments.filter(a => a.status === 'confirmed').length}
+                </div>
+                <p className="text-xs text-muted-foreground">Bestätigte Termine</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Friseure</CardTitle>
+                <User className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {stylists.filter(s => s.is_active).length}
+                </div>
+                <p className="text-xs text-muted-foreground">Aktive Friseure</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Services</CardTitle>
+                <Scissors className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {services.filter(s => s.is_active).length}
+                </div>
+                <p className="text-xs text-muted-foreground">Aktive Services</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Hauptinhalt */}
+        {isLoggedIn && (
+          <Tabs defaultValue="appointments" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="appointments">Termine</TabsTrigger>
+              <TabsTrigger value="stylists">Friseure</TabsTrigger>
+              <TabsTrigger value="services">Services</TabsTrigger>
+            </TabsList>
+
+            {/* Termine Tab */}
+            <TabsContent value="appointments" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Termine verwalten
+                  </CardTitle>
+                  <CardDescription>
+                    Alle Termine einsehen und verwalten
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {/* Filter */}
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Datum & Zeit</TableHead>
+                          <TableHead>Kunde</TableHead>
+                          <TableHead>Service</TableHead>
+                          <TableHead>Friseur</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Preis</TableHead>
+                          <TableHead>Aktionen</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {appointments.map((appointment) => (
+                          <TableRow key={appointment.id}>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {format(new Date(appointment.appointment_date), 'dd.MM.yyyy', { locale: de })}
+                                </span>
+                                <span className="text-sm text-muted-foreground">
+                                  {appointment.start_time} - {appointment.end_time}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{appointment.customer_name}</span>
+                                <span className="text-sm text-muted-foreground">{appointment.customer_email}</span>
+                                {appointment.customer_phone && (
+                                  <span className="text-sm text-muted-foreground">{appointment.customer_phone}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{appointment.service_name}</span>
+                                {appointment.notes && (
+                                  <span className="text-sm text-muted-foreground">{appointment.notes}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-medium">{appointment.stylist_name}</span>
+                            </TableCell>
+                            <TableCell>
+                              {getStatusBadge(appointment.status)}
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-medium">{appointment.price.toFixed(2)} €</span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Termin Details</DialogTitle>
+                                      <DialogDescription>
+                                        Detaillierte Informationen zum Termin
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4">
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                          <Label className="text-sm font-medium">Kunde</Label>
+                                          <p>{appointment.customer_name}</p>
+                                          <p className="text-sm text-muted-foreground">{appointment.customer_email}</p>
+                                          {appointment.customer_phone && (
+                                            <p className="text-sm text-muted-foreground">{appointment.customer_phone}</p>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <Label className="text-sm font-medium">Termin</Label>
+                                          <p>{format(new Date(appointment.appointment_date), 'dd.MM.yyyy', { locale: de })}</p>
+                                          <p className="text-sm text-muted-foreground">
+                                            {appointment.start_time} - {appointment.end_time}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <Label className="text-sm font-medium">Service</Label>
+                                        <p>{appointment.service_name}</p>
+                                        <p className="text-sm text-muted-foreground">{appointment.price.toFixed(2)} €</p>
+                                      </div>
+                                      <div>
+                                        <Label className="text-sm font-medium">Friseur</Label>
+                                        <p>{appointment.stylist_name}</p>
+                                      </div>
+                                      {appointment.notes && (
+                                        <div>
+                                          <Label className="text-sm font-medium">Anmerkungen</Label>
+                                          <p>{appointment.notes}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+
+                                {appointment.status === 'confirmed' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => updateAppointmentStatus(appointment.id, 'completed')}
+                                      className="text-green-600 hover:text-green-700"
+                                    >
+                                      <CheckCircle className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => updateAppointmentStatus(appointment.id, 'cancelled')}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <XCircle className="w-4 h-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {appointments.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Keine Termine gefunden
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Friseure Tab */}
+            <TabsContent value="stylists" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Friseure verwalten
+                  </CardTitle>
+                  <CardDescription>
+                    Alle Friseure einsehen und verwalten
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {stylists.map((stylist) => (
+                      <Card key={stylist.id}>
+                        <CardHeader>
+                          <CardTitle className="flex items-center justify-between">
+                            {stylist.name}
+                            <Badge variant={stylist.is_active ? "default" : "secondary"}>
+                              {stylist.is_active ? "Aktiv" : "Inaktiv"}
+                            </Badge>
+                          </CardTitle>
+                          <CardDescription>{stylist.specialties}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="text-sm">
+                            <span className="font-medium">E-Mail:</span> {stylist.email}
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-medium">Telefon:</span> {stylist.phone}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Services Tab */}
+            <TabsContent value="services" className="space-y-6">
+              <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-xl backdrop-saturate-150">
+                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100/50 p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-2xl flex items-center gap-3 text-gray-800">
+                        <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                          <Scissors className="w-4 h-4 text-white" />
+                        </div>
+                        Services verwalten
+                      </CardTitle>
+                      <CardDescription className="text-lg text-gray-600 mt-2">
+                        Alle Services einsehen, bearbeiten und neue erstellen
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      onClick={() => setShowServiceForm(true)}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Neuer Service
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {services.map((service) => (
+                      <Card key={service.id} className="shadow-lg hover:shadow-xl transition-all duration-200 border-0 bg-white/90">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <CardTitle className="text-lg font-bold text-gray-800 mb-2">{service.name}</CardTitle>
+                              <CardDescription className="text-gray-600 text-sm leading-relaxed">{service.description}</CardDescription>
+                            </div>
+                            <Badge 
+                              variant={service.is_active ? "default" : "secondary"}
+                              className={cn(
+                                "ml-2",
+                                service.is_active 
+                                  ? "bg-gradient-to-r from-green-500 to-emerald-500 text-white" 
+                                  : "bg-gray-300 text-gray-700"
+                              )}
+                            >
+                              {service.is_active ? "Aktiv" : "Inaktiv"}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div className="bg-gray-50 p-2 rounded-lg">
+                              <span className="font-semibold text-gray-700">⏱️ Dauer:</span>
+                              <div className="text-gray-800 font-medium">{service.duration} Min.</div>
+                            </div>
+                            <div className="bg-gray-50 p-2 rounded-lg">
+                              <span className="font-semibold text-gray-700">💰 Preis:</span>
+                              <div className="text-purple-600 font-bold">CHF {service.price.toFixed(0)}</div>
+                            </div>
+                          </div>
+                          <div className="bg-purple-50 p-2 rounded-lg">
+                            <span className="font-semibold text-purple-700 text-sm">🏷️ Kategorie:</span>
+                            <div className="text-purple-800 font-medium">{service.category}</div>
+                          </div>
+                          <div className="flex gap-2 pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => editService(service)}
+                              className="flex-1 border-purple-200 hover:border-purple-400 hover:bg-purple-50 text-purple-700 transition-all duration-200"
+                            >
+                              <Edit className="w-3 h-3 mr-1" />
+                              Bearbeiten
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteService(service.id)}
+                              className="flex-1 border-red-200 hover:border-red-400 hover:bg-red-50 text-red-700 transition-all duration-200"
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" />
+                              Löschen
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  
+                  {services.length === 0 && (
+                    <div className="text-center py-12 text-gray-500">
+                      <Scissors className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                      <p className="text-lg font-medium">Keine Services gefunden</p>
+                      <p className="text-sm">Erstelle deinen ersten Service!</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
 
       {/* Service-Formular Modal */}
